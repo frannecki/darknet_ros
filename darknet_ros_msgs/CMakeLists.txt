@@ -15,6 +15,7 @@ find_package(catkin REQUIRED
 
 add_message_files(
   FILES
+    BboxImage.msg
     BoundingBox.msg
     BoundingBoxes.msg
 )

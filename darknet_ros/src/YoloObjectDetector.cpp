@@ -100,6 +100,7 @@ void YoloObjectDetector::init()
   weightsPath += "/" + weightsModel;
   weights = new char[weightsPath.length() + 1];
   strcpy(weights, weightsPath.c_str());
+  ROS_INFO("[YoloObjectDetector] Used weights file: %s.", weights);
 
   // Path to config file.
   nodeHandle_.param("yolo_model/config_file/name", configModel, std::string("yolov2-tiny.cfg"));
@@ -122,6 +123,7 @@ void YoloObjectDetector::init()
   }
 
   // Load network.
+  ROS_INFO("[YoloObjectDetector] Used %s.", cfg);
   setupNetwork(cfg, weights, data, thresh, detectionNames, numClasses_,
                 0, 0, 1, 0.5, 0, 0, 0, 0);
   yoloThread_ = std::thread(&YoloObjectDetector::yolo, this);
@@ -138,6 +140,9 @@ void YoloObjectDetector::init()
   std::string detectionImageTopicName;
   int detectionImageQueueSize;
   bool detectionImageLatch;
+  std::string bboxImageTopicName;
+  int bboxImageQueueSize;
+  bool bboxImageLatch;
 
   nodeHandle_.param("subscribers/camera_reading/topic", cameraTopicName,
                     std::string("/camera/image_raw"));
@@ -154,6 +159,10 @@ void YoloObjectDetector::init()
                     std::string("detection_image"));
   nodeHandle_.param("publishers/detection_image/queue_size", detectionImageQueueSize, 1);
   nodeHandle_.param("publishers/detection_image/latch", detectionImageLatch, true);
+  nodeHandle_.param("publishers/bbox_image/topic", bboxImageTopicName,
+                    std::string("bbox_image"));
+  nodeHandle_.param("publishers/bbox_image/queue_size", bboxImageQueueSize, 1);
+  nodeHandle_.param("publishers/bbox_image/latch", bboxImageLatch, true);
 
   imageSubscriber_ = imageTransport_.subscribe(cameraTopicName, cameraQueueSize,
                                                &YoloObjectDetector::cameraCallback, this);
@@ -165,6 +174,9 @@ void YoloObjectDetector::init()
   detectionImagePublisher_ = nodeHandle_.advertise<sensor_msgs::Image>(detectionImageTopicName,
                                                                        detectionImageQueueSize,
                                                                        detectionImageLatch);
+  bboxImagePublisher_ = nodeHandle_.advertise<darknet_ros_msgs::BboxImage>(bboxImageTopicName,
+                                                                       bboxImageQueueSize,
+                                                                       bboxImageLatch);
 
   // Action servers.
   std::string checkForObjectsActionName;
@@ -266,7 +278,9 @@ bool YoloObjectDetector::publishDetectionImage(const cv::Mat& detectionImage)
   cvImage.encoding = sensor_msgs::image_encodings::BGR8;
   cvImage.image = detectionImage;
   detectionImagePublisher_.publish(*cvImage.toImageMsg());
+  // bboxImagePublisher_.publish(bboxImageResults_);
   ROS_DEBUG("Detection image has been published.");
+  ROS_DEBUG("Detection image along with bounding boxes has been published.");
   return true;
 }
 
@@ -339,7 +353,6 @@ void *YoloObjectDetector::detectInThread()
   dets = avgPredictions(net_, &nboxes);
 
   if (nms > 0) do_nms_obj(dets, nboxes, l.classes, nms);
-
   if (enableConsoleOutput_) {
     printf("\033[2J");
     printf("\033[1;1H");
@@ -623,6 +636,12 @@ void *YoloObjectDetector::publishInThread()
     boundingBoxesResults_.header.frame_id = "detection";
     boundingBoxesResults_.image_header = headerBuff_[(buffIndex_ + 1) % 3];
     boundingBoxesPublisher_.publish(boundingBoxesResults_);
+
+    bboxImageResults_.bboxes = boundingBoxesResults_;
+    sensor_msgs::ImagePtr sensor_img = cv_bridge::CvImage(std_msgs::Header(), 
+            sensor_msgs::image_encodings::BGR8, cvImage.clone()).toImageMsg();
+    bboxImageResults_.img = *sensor_img;
+    bboxImagePublisher_.publish(bboxImageResults_);
   } else {
     std_msgs::Int8 msg;
     msg.data = 0;

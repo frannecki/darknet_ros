@@ -43,7 +43,7 @@ IF ( X11_FOUND )
   MESSAGE ( STATUS " X11_LIBRARIES: " ${X11_LIBRARIES} )
 ENDIF ( X11_FOUND )
 
-# Find rquired packeges
+# Find required packeges
 find_package(Boost REQUIRED COMPONENTS thread)
 find_package(OpenCV REQUIRED)
 include_directories(${OpenCV_INCLUDE_DIRS})

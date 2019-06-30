@@ -23,5 +23,4 @@
 
   <!-- Test dependencies -->
   <test_depend>rostest</test_depend>
-  <test_depend>wget</test_depend>
 </package>

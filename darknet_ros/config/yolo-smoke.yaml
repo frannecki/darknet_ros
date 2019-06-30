@@ -1,0 +1,12 @@
+yolo_model:
+
+  config_file:
+    name: yolo-smoke.5.cfg
+  weight_file:
+    name: yolo-smoke.5.weights
+  threshold:
+    value: 0.1
+  detection_classes:
+    names:
+      - smoke
+      - chimney
